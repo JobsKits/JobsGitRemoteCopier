@@ -5,6 +5,29 @@
 # - 影响范围：只处理固定扩展、Xcode / 本工作区构建产物和旧 Automator 服务。
 # - 运行提示：运行后会先打印内置自述；按回车执行卸载并重启 Finder。按 Ctrl+C 可取消。
 
+# 仅渲染自述：标题红色加粗，编号正文蓝色常规字重；非彩色终端输出纯文本。
+jobs_intro_style() {
+  local intro_color=0
+  if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM:-}" != dumb ] &&
+     [ -z "${NO_COLOR+x}" ] && [ "${PLAIN_OUTPUT:-0}" != 1 ] &&
+     [ "${IS_SOURCETREE_RUNTIME:-0}" != 1 ]; then
+    intro_color=1
+  fi
+  /usr/bin/awk -v color="$intro_color" -v role="${1:-body}" '
+    BEGIN { esc = sprintf("%c", 27) }
+    {
+      gsub(esc "\\[[0-9;]*m", "")
+      gsub(/\\(033|e|x1[bB])\[[0-9;]*m/, "")
+      if (!color || $0 ~ /^[[:space:]]*$/) { print; next }
+      numbered = ($0 ~ /^[[:space:]➤ℹ🔹✔⚠]*([0-9]+[、.)）]|[0-9]+️⃣|[-•])/)
+      heading = ($0 ~ /^[[:space:]]*#{1,6}[[:space:]]/ || $0 ~ /[：:][[:space:]]*$/ || $0 ~ /^[[:space:]]*[=━─-]{3}/)
+      title = (!numbered && (role == "title" || heading))
+      if (role == "auto" && !seen && !numbered) title = 1
+      if ($0 !~ /^[[:space:]]*[=━─-]+[[:space:]]*$/) seen = 1
+      printf "%s%s%s\n", esc (title ? "[1;31m" : "[0;34m"), $0, esc "[0m"
+    }
+  '
+}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/$(basename -- "$0")"
 WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -42,21 +65,21 @@ init_runtime() {
 # 打印脚本内置自述并等待用户确认阅读。
 show_script_intro_and_wait() {
   clear
-  highlight_echo "============================== 脚本自述 =============================="
-  note_echo "当前脚本：${SCRIPT_PATH}"
-  note_echo "核心用途：卸载 Finder 右键菜单里的“复制 Git 远程地址”。"
-  warn_echo "影响范围：停止并注销 ${EXTENSION_ID}"
-  warn_echo "影响范围：删除 Xcode DerivedData 下的 JobsGitRemoteCopier.app 构建产物。"
-  warn_echo "影响范围：删除本工作区 ${LOCAL_DERIVED_DATA_DIR} 旧构建产物。"
-  warn_echo "影响范围：删除 ${APP_REFRESH_MARKER} 运行时刷新标记。"
-  warn_echo "影响范围：删除旧 Automator 服务 ${AUTOMATOR_SERVICE_DIR}"
-  warn_echo "影响范围：自动重启 Finder，刷新 Finder Sync 扩展缓存。"
-  warn_echo "执行策略：按回车后立即开始卸载并重启 Finder；按 Ctrl+C 才会取消。"
-  gray_echo "不会删除 JobsGitRemoteCopier 工程源码。"
-  gray_echo "取消方式：按 Ctrl+C 终止，不会继续执行卸载。"
-  gray_echo "日志位置：${LOG_FILE}"
-  highlight_echo "======================================================================="
-  echo ""
+  highlight_echo "============================== 脚本自述 ==============================" | jobs_intro_style title
+  note_echo "当前脚本：${SCRIPT_PATH}" | jobs_intro_style body
+  note_echo "核心用途：卸载 Finder 右键菜单里的“复制 Git 远程地址”。" | jobs_intro_style body
+  warn_echo "影响范围：停止并注销 ${EXTENSION_ID}" | jobs_intro_style body
+  warn_echo "影响范围：删除 Xcode DerivedData 下的 JobsGitRemoteCopier.app 构建产物。" | jobs_intro_style body
+  warn_echo "影响范围：删除本工作区 ${LOCAL_DERIVED_DATA_DIR} 旧构建产物。" | jobs_intro_style body
+  warn_echo "影响范围：删除 ${APP_REFRESH_MARKER} 运行时刷新标记。" | jobs_intro_style body
+  warn_echo "影响范围：删除旧 Automator 服务 ${AUTOMATOR_SERVICE_DIR}" | jobs_intro_style body
+  warn_echo "影响范围：自动重启 Finder，刷新 Finder Sync 扩展缓存。" | jobs_intro_style body
+  warn_echo "执行策略：按回车后立即开始卸载并重启 Finder；按 Ctrl+C 才会取消。" | jobs_intro_style body
+  gray_echo "不会删除 JobsGitRemoteCopier 工程源码。" | jobs_intro_style body
+  gray_echo "取消方式：按 Ctrl+C 终止，不会继续执行卸载。" | jobs_intro_style body
+  gray_echo "日志位置：${LOG_FILE}" | jobs_intro_style body
+  highlight_echo "=======================================================================" | jobs_intro_style title
+  echo "" | jobs_intro_style body
 
   if [[ ! -t 0 ]]; then
     error_echo "当前没有可交互输入，无法确认卸载。请在终端里运行本脚本。"
